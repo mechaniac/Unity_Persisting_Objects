@@ -4,21 +4,22 @@ using System.IO;
 
 public class Game : PersistableObject
 {
+    const int saveVersion = 1;
     public PersistentStorage storage;
 
-    public PersistableObject prefab;
+    public ShapeFactory shapeFactory;
     public KeyCode createKey = KeyCode.C;
     public KeyCode newGameKey = KeyCode.N;
     public KeyCode saveKey = KeyCode.S;
     public KeyCode loadKey = KeyCode.L;
 
-    List<PersistableObject> objects;
+    List<Shape> shapes;
 
     
 
     private void Awake()
     {
-        objects = new List<PersistableObject>();
+        shapes = new List<Shape>();
 
        
     }
@@ -26,7 +27,7 @@ public class Game : PersistableObject
     {
         if (Input.GetKeyDown(createKey))
         {
-            InstantiateCube();   
+            CreateShape();   
         }
         else if (Input.GetKeyDown(newGameKey))
         {
@@ -34,7 +35,7 @@ public class Game : PersistableObject
         }
         else if (Input.GetKeyDown(saveKey))
         {
-            storage.Save(this);
+            storage.Save(this, saveVersion);
         }
         else if (Input.GetKeyDown(loadKey))
         {
@@ -45,41 +46,57 @@ public class Game : PersistableObject
 
     public override void Save(GameDataWriter writer)
     {
-        writer.Write(objects.Count);
-        for (int i = 0; i < objects.Count; i++)
+        //writer.Write(-saveVersion); //now in persistentStorage.Save() //write version negative, so it can be checked against older versions that didnt have a version
+        writer.Write(shapes.Count);
+        for (int i = 0; i < shapes.Count; i++)
         {
-            objects[i].Save(writer);
+            writer.Write(shapes[i].ShapeId);
+            writer.Write(shapes[i].MaterialId);
+            shapes[i].Save(writer);
         }
     }
-
+    
     public override void Load(GameDataReader reader)
     {
-        int count = reader.ReadInt();
+        int version = reader.Version; //use negative version, in case its an old File, that didnt have version included yet
+        if(version > saveVersion)
+        {
+            Debug.LogError("Unsupported Future Save Version " + version);
+            return;
+        }
+        int count = version <= 0 ? -version : reader.ReadInt(); //if inverted! version nr is smaller than 0, its acutally the count (there is no version then)
         for (int i = 0; i < count; i++)
         {
-            PersistableObject o = Instantiate(prefab);
-            o.Load(reader);
-            objects.Add(o);
+            int shapeId = version > 0 ? reader.ReadInt() : 0;
+            int materialId = version > 0 ? reader.ReadInt() : 0;
+            Shape instance = shapeFactory.Get(shapeId, materialId);
+            instance.Load(reader);
+            shapes.Add(instance);
         }
     }
 
-    void InstantiateCube()
+    void CreateShape()
     {
-        PersistableObject o = Instantiate(prefab);
-        Transform t = o.transform;
+        Shape instance = shapeFactory.GetRandom();
+        Transform t = instance.transform;
         t.localPosition = Random.insideUnitSphere * 5f;
         t.localRotation = Random.rotation;
         t.localScale = Vector3.one * Random.Range(.1f, 2f);
-        objects.Add(o);
+        instance.SetColor(Random.ColorHSV(
+            hueMin: 0f,hueMax: 1f,
+            saturationMin: 0.5f,saturationMax: 1f,
+            valueMin: 0.25f,valueMax: 1f,
+            alphaMin: 1f,alphaMax: 1f));
+        shapes.Add(instance);
     }
 
     void BeginNewGame()
     {
-        for (int i = 0; i < objects.Count; i++)
+        for (int i = 0; i < shapes.Count; i++)
         {
-            Destroy(objects[i].gameObject);
+            Destroy(shapes[i].gameObject);
         }
-        objects.Clear();
+        shapes.Clear();
     }
 
    
