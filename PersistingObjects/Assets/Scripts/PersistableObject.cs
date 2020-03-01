@@ -6,6 +6,7 @@ using System.IO;
 [DisallowMultipleComponent]
 public class PersistableObject : MonoBehaviour
 {
+    int shapeId = int.MinValue;
     public int ShapeId {
         get { 
             return shapeId; 
@@ -22,7 +23,7 @@ public class PersistableObject : MonoBehaviour
         }
     }
 
-    int shapeId = int.MinValue;
+    
     public virtual void Save(GameDataWriter writer)
     {
         writer.Write(transform.localPosition);
