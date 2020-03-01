@@ -9,12 +9,18 @@ public class Game : PersistableObject
 
     public ShapeFactory shapeFactory;
     public KeyCode createKey = KeyCode.C;
+    public KeyCode destroyKey = KeyCode.X;
     public KeyCode newGameKey = KeyCode.N;
     public KeyCode saveKey = KeyCode.S;
     public KeyCode loadKey = KeyCode.L;
 
     List<Shape> shapes;
 
+    public float CreationSpeed { get; set; }
+    float creationProgress;
+
+    public float DestructionSpeed { get; set; }
+    float destructionProgress;
     
 
     private void Awake()
@@ -25,6 +31,25 @@ public class Game : PersistableObject
     }
     private void Update()
     {
+        creationProgress += Time.deltaTime * CreationSpeed;
+
+        while(creationProgress >= 1)
+        {
+            creationProgress -= 1;
+            CreateShape();
+        }
+
+        destructionProgress += Time.deltaTime * DestructionSpeed;
+
+        while(destructionProgress >= 1)
+        {
+            destructionProgress -= 1;
+            DestroyShape();
+        }
+
+
+
+
         if (Input.GetKeyDown(createKey))
         {
             CreateShape();   
@@ -41,6 +66,10 @@ public class Game : PersistableObject
         {
             BeginNewGame();
             storage.Load(this);
+        }
+        else if (Input.GetKeyDown(destroyKey))
+        {
+            DestroyShape();
         }
     }
 
@@ -90,11 +119,25 @@ public class Game : PersistableObject
         shapes.Add(instance);
     }
 
+    void DestroyShape()
+    {
+        if(shapes.Count > 0)
+        {
+            int index = Random.Range(0, shapes.Count);
+            
+            shapeFactory.Reclaim(shapes[index]);
+            int lastIndex = shapes.Count - 1;
+            shapes[index] = shapes[lastIndex];
+            shapes.RemoveAt(lastIndex);
+        }
+        
+    }
+
     void BeginNewGame()
     {
         for (int i = 0; i < shapes.Count; i++)
         {
-            Destroy(shapes[i].gameObject);
+            shapeFactory.Reclaim(shapes[i]);
         }
         shapes.Clear();
     }
