@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -8,7 +9,7 @@ public class MovingSphere : MonoBehaviour
     float maxSpeed = 10f;
 
     [SerializeField, Range(0f, 100f)]
-    float maxAcceleration = 10f;
+    float maxAcceleration = 10f, maxAirAcceleration = 1f;
 
     [SerializeField]
     Rect allowedArea = new Rect(-4.5f, -4.5f, 9, 9);
@@ -16,62 +17,91 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0f, 1f)]
     float bounciness = .5f;
 
-    Vector3 velocity;
+    Vector3 velocity, desiredVelocity;
 
+    Rigidbody body;
+
+    bool desiredJump;
+    bool onGround;
+
+    [SerializeField, Range (0, 5)]
+    int maxAirJumps = 0;
+
+    int jumpPhase;
+
+    [SerializeField, Range(0f, 10f)]
+    float jumpHeight = 2f;
+
+    private void Awake()
+    {
+        body = GetComponent<Rigidbody>();
+    }
     private void Update()
     {
         Vector2 playerInput;
         playerInput.x = Input.GetAxis("Horizontal");
         playerInput.y = Input.GetAxis("Vertical");
         playerInput = Vector2.ClampMagnitude(playerInput, 1f);
-        Vector3 desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) *maxSpeed;
-        float maxSpeedChange = maxAcceleration * Time.deltaTime;
+        desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) *maxSpeed;
 
-        //if(velocity.x < desiredVelocity.x)
-        //{
-        //    velocity.x = Mathf.Min(velocity.x + maxSpeedChange, desiredVelocity.x);
-        //}
-        //else if(velocity.x > desiredVelocity.x)
-        //{
-        //    velocity.x = Mathf.Max(velocity.x - maxSpeedChange, desiredVelocity.x);
-        //}
+        desiredJump |= Input.GetButtonDown("Jump");
+       
+    }
+    private void FixedUpdate()
+    {
+        UpdateState();
+        float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
+        float maxSpeedChange = acceleration * Time.deltaTime;
 
         velocity.x = Mathf.MoveTowards(velocity.x, desiredVelocity.x, maxSpeedChange);
         velocity.z = Mathf.MoveTowards(velocity.z, desiredVelocity.z, maxSpeedChange);
 
-        Vector3 displacement = velocity * Time.deltaTime;
-        
-        //transform.localPosition += displacement;
+        if (desiredJump)
+        {
+            desiredJump = false;
+            Jump();
+        }
 
-        Vector3 newPosition = transform.localPosition + displacement;
-        //if (!allowedArea.Contains(new Vector2(newPosition.x, newPosition.z)))
-        //{
-        //    //newPosition = transform.localPosition;
-        //    //velocity = new Vector3();
-        //    newPosition.x = Mathf.Clamp(newPosition.x, allowedArea.xMin, allowedArea.xMax);
-        //    newPosition.z = Mathf.Clamp(newPosition.z, allowedArea.yMin, allowedArea.yMax);
-        //}
+        body.velocity = velocity;
+        onGround = false;
+    }
 
-        if(newPosition.x < allowedArea.xMin)
+    void UpdateState()
+    {
+        velocity = body.velocity;
+        if (onGround)
         {
-            newPosition.x = allowedArea.xMin;
-            velocity.x = -velocity.x * bounciness;
-        } 
-        else if (newPosition.x > allowedArea.xMax)
-        {
-            newPosition.x = allowedArea.xMax;
-            velocity.x = -velocity.x * bounciness;
+            jumpPhase = 0;
         }
-        if(newPosition.z < allowedArea.yMin)
+    }
+    private void OnCollisionEnter(Collision collision)
+    {
+        EvaluateCollision(collision);
+    }
+    private void OnCollisionStay(Collision collision)
+    {
+        EvaluateCollision(collision);
+    }
+
+    void EvaluateCollision(Collision collision)
+    {
+        for (int i = 0; i < collision.contactCount; i++)
         {
-            newPosition.z = allowedArea.yMin;
-            velocity.z = -velocity.z * bounciness;
+            Vector3 normal = collision.GetContact(i).normal;
+            onGround |= normal.y > 0.9f;
         }
-        else if(newPosition.z > allowedArea.yMax)
+    }
+    private void Jump()
+    {
+        if (onGround || jumpPhase < maxAirJumps)
         {
-            newPosition.z = allowedArea.yMax;
-            velocity.z = -velocity.z * bounciness;
+            jumpPhase += 1;
+            float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
+            if(velocity.y > 0)
+            {
+                jumpSpeed = Mathf.Max( jumpSpeed - velocity.y, 0f);
+            }
+            velocity.y += jumpSpeed;
         }
-        transform.localPosition = newPosition;
     }
 }
